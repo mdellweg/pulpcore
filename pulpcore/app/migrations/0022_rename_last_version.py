@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(plus_one),
+        migrations.RunPython(plus_one, elidable=True),
         migrations.RenameField(
             model_name='repository',
             old_name='last_version',
