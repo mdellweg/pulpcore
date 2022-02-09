@@ -8,6 +8,7 @@ from pulpcore.app.models import (
     ProgressReport,
     PublishedMetadata,
 )
+from pulpcore.tasking.tasks import pulp_task, pulp_task_global_resource
 
 
 def queryset_iterator(qs, batchsize=2000, gc_collect=True):
@@ -31,6 +32,8 @@ def queryset_iterator(qs, batchsize=2000, gc_collect=True):
             gc.collect()
 
 
+@pulp_task_global_resource("/pulp/api/v3/orphans/cleanup/")
+@pulp_task
 def orphan_cleanup(content_pks=None, orphan_protection_time=settings.ORPHAN_PROTECTION_TIME):
     """
     Delete all orphan Content and Artifact records.

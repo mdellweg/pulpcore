@@ -4,6 +4,7 @@ from pulpcore.app.apps import get_plugin_config
 from pulpcore.app.models import CreatedResource, PulpTemporaryFile
 from pulpcore.app.files import PulpTemporaryUploadedFile
 from pulpcore.plugin.models import MasterModel
+from pulpcore.tasking.tasks import pulp_task, pulp_task_arg
 
 
 def general_create_from_temp_file(app_label, serializer_name, temp_file_pk, *args, **kwargs):
@@ -69,6 +70,17 @@ def general_update(instance_id, app_label, serializer_name, *args, **kwargs):
     serializer = serializer_class(instance, data=data, partial=partial)
     serializer.is_valid(raise_exception=True)
     serializer.save()
+
+
+@pulp_task_arg("instance", {"exclusive": True, "transform": lambda n, x: {"app_label": x._meta.app_label, "model_name": x._meta.model_name, "pk": x.pk}})
+@pulp_task
+def general_delete_v2(app_label, model_name, pk):
+    """
+    Delete an instance of a model.
+
+    Example:
+    `general_delete_v2.dispatch(instance=obj)`
+    """
 
 
 def general_delete(instance_id, app_label, serializer_name):

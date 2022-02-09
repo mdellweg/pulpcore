@@ -135,3 +135,69 @@ def dispatch_scheduled_tasks():
                     task_name=task_schedule.task_name, error=str(e)
                 )
             )
+
+
+def pulp_task(f):
+    """Decorator to add a dispatch method to a function."""
+
+    def _dispatch(
+        kwargs=None,
+        task_group=None,
+    ):
+        exclusive_resources = []
+        shared_resources = []
+
+        for arg_name, arg_spec in f.args_spec.items():
+            if arg_name in kwargs:
+                if arg_spec.get("exclusive", False):
+                    exclusive_resources.append(kwargs[arg_name])
+                elif arg_spec.get("shared", False):
+                    exclusive_shared.append(kwargs[arg_name])
+                if transform := arg_spec.get("transform"):
+                    kwargs.update(transform(arg_name, kwargs.pop(arg_name)))
+
+            elif arg_spec.get("required", False):
+                raise RuntimeError(
+                    "Parameter {arg_name} required for task {task_name}.".format(
+                        task_name=f.task_name, arg_name=arg_name
+                    )
+                )
+
+        exclusive_resources.extend(f.global_exclusive_resources)
+        shared_resources.extend(f.global_shared_resources)
+
+        dispatch(
+            f.task_name,
+            kwargs=kwargs,
+            task_group=task_group,
+            exclusive_resources=exclusive_resources,
+            shared_resources=shared_resources,
+        )
+
+    f.task_name = f"{f.__module__}.{f.__name__}"
+    f.args_spec = {}
+    f.global_exclusive_resources = []
+    f.global_shared_resources = []
+    f.dispatch = _dispatch
+    return f
+
+
+def pulp_task_arg(name, spec=None):
+    """Decorator to add an argument to a pulp tasks argument spec."""
+
+    def decorator(f):
+        f.args_spec[name] = spec or {}
+        return f
+
+    return decorator
+
+
+def pulp_task_global_resource(name, exclusive=True):
+    def decorator(f):
+        if exclusive:
+            f.global_exclusive_resources.append(name)
+        else:
+            f.global_shared_resources.append(name)
+        return f
+
+    return decorator

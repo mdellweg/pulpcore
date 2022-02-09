@@ -14,6 +14,7 @@ from pulpcore.app.models import SystemID
 from pulpcore.app.models.status import ContentAppStatus
 from pulpcore.app.models.task import Worker
 from pulpcore.app.protobuf.analytics_pb2 import Analytics
+from pulpcore.tasking.tasks import pulp_task
 
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ async def _system_id(analytics):
     analytics.system_id = str(system_id_obj.pk)
 
 
+@pulp_task
 async def post_analytics():
     url = get_analytics_posting_url()
 

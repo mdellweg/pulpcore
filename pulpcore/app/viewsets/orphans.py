@@ -5,7 +5,6 @@ from rest_framework.viewsets import ViewSet
 from pulpcore.app.response import OperationPostponedResponse
 from pulpcore.app.serializers import AsyncOperationResponseSerializer, OrphansCleanupSerializer
 from pulpcore.app.tasks import orphan_cleanup
-from pulpcore.tasking.tasks import dispatch
 
 
 class OrphansCleanupViewset(ViewSet):
@@ -27,9 +26,7 @@ class OrphansCleanupViewset(ViewSet):
             "orphan_protection_time", settings.ORPHAN_PROTECTION_TIME
         )
 
-        task = dispatch(
-            orphan_cleanup,
-            exclusive_resources=["/pulp/api/v3/orphans/cleanup/"],
+        task = orphan_cleanup.dispatch(
             kwargs={"content_pks": content_pks, "orphan_protection_time": orphan_protection_time},
         )
 
