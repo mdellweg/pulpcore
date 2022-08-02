@@ -12,8 +12,6 @@ import uuid
 
 class Migration(migrations.Migration):
 
-    replaces = [('core', '0001_initial'), ('core', '0002_increase_artifact_size_field'), ('core', '0003_remove_upload_completed'), ('core', '0004_add_duplicated_reserved_resources'), ('core', '0005_progressreport_code'), ('core', '0006_repository_plugin_managed'), ('core', '0007_delete_progress_proxies'), ('core', '0008_published_metadata_as_content'), ('core', '0009_remove_task_non_fatal_errors'), ('core', '0010_pulp_fields'), ('core', '0011_relative_path'), ('core', '0012_auto_20191104_2000'), ('core', '0013_repository_pulp_type'), ('core', '0014_remove_repository_plugin_managed'), ('core', '0015_auto_20191112_1426'), ('core', '0016_charfield_to_textfield'), ('core', '0017_remove_task_parent'), ('core', '0018_auto_20191127_2350'), ('core', '0019_add_signing_service_model'), ('core', '0020_change_publishedartifact_constraints'), ('core', '0021_add_signing_service_foreign_key'), ('core', '0022_rename_last_version')]
-
     initial = True
 
     dependencies = [
