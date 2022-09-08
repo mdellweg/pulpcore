@@ -81,7 +81,7 @@ class DistroListings(HTTPOk):
         distros = distros.exclude(pulp_type=ArtifactDistribution.get_pulp_type())
         if settings.HIDE_GUARDED_DISTRIBUTIONS:
             distros = distros.filter(content_guard__isnull=True)
-        base_paths = (
+        path_fragments = (
             distros.filter(content_guard__isnull=True)
             .annotate(rel_path=models.functions.Substr("base_path", 1 + len(path)))
             .annotate(
@@ -92,11 +92,11 @@ class DistroListings(HTTPOk):
                 )
             )
             .order_by("path")
-            .values_list("path", flat=True)
-            .distinct()
+            .values("path")
+            .annotate(total=models.Count("pulp_id"), protected=models.Count("content_guard"))
         )
-        directory_list = (f"{b}/" for b in base_paths)
-        html = Handler.render_html(directory_list)
+        directory_list = ({"path": f"{item['path']}/", "total": item["total"], "protected": item["protected"]} for item in path_fragments)
+        html = Handler.render_directory_list(directory_list)
         super().__init__(body=html, headers={"Content-Type": "text/html"})
 
 
@@ -347,7 +347,7 @@ class Handler:
         return headers
 
     @staticmethod
-    def render_html(directory_list):
+    def render_directory_list(directory_list):
         """
         Render a list of strings as an HTML list of links.
 
@@ -363,15 +363,17 @@ class Handler:
         <html>
             <body>
                 <ul>
-                {% for name in dir_list %}
-                    <li><a href="{{ name|e }}">{{ name|e }}</a></li>
-                {% endfor %}
+                {%- for dir in dir_list %}
+                {%- if dir.protected < dir.total %}
+                    <li><a href="{{ dir.path|e }}">{{ dir.path|e }}</a></li>
+                {%- endif %}
+                {%- endfor %}
                 </ul>
             </body>
         </html>
         """
         )
-        return template.render(dir_list=sorted(directory_list))
+        return template.render(dir_list=directory_list)
 
     async def list_directory(self, repo_version, publication, path):
         """
