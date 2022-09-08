@@ -82,7 +82,8 @@ class DistroListings(HTTPOk):
         if settings.HIDE_GUARDED_DISTRIBUTIONS:
             distros = distros.filter(content_guard__isnull=True)
         base_paths = (
-            distros.annotate(rel_path=models.functions.Substr("base_path", 1 + len(path)))
+            distros.filter(content_guard__isnull=True)
+            .annotate(rel_path=models.functions.Substr("base_path", 1 + len(path)))
             .annotate(
                 path=models.Func(
                     models.F("rel_path"),
