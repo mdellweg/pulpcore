@@ -1,4 +1,5 @@
 import logging
+from functools import wraps
 from gettext import gettext as _
 import asyncio
 import contextlib
@@ -124,7 +125,11 @@ def dispatch(
     assert deferred or immediate, "A task must be at least `deferred` or `immediate`."
 
     if callable(func):
-        function_name = f"{func.__module__}.{func.__name__}"
+        qualname = func.__qualname__
+        # This is a restriction in Pulp that task functions must be a first class element in their
+        # module. Maybe we can change this to ``f"{func.__module__}:{func.__qualname__}"``.
+        assert "." not in qualname
+        function_name = f"{func.__module__}.{qualname}"
     else:
         function_name = func
 
@@ -227,3 +232,28 @@ def dispatch_scheduled_tasks():
                     task_name=task_schedule.task_name, error=str(e)
                 )
             )
+
+
+def pulp_task(serializer, output_serializer=None):
+    if output_serializer is None:
+        output_serializer = serializer
+
+    def _wrapper(f):
+        @wraps(f)
+        def _f(**kwargs):
+            ser = serializer(data=kwargs, context={"request": None})
+            ser.is_valid(raise_exception=True)
+            result = f(**ser.validated_data)
+            out_ser = output_serializer(instance=result, context={"request": None})
+            return out_ser.data
+
+        def _dispatch(data, task_group=None):
+            ser = serializer(data=data)
+            ser.is_valid(raise_exception=True)
+            er, sr = ser.resources
+            return dispatch(f, kwargs=data, exclusive_resources=er, shared_resources=sr, task_group=task_group)
+
+        _f.dispatch = _dispatch
+        return _f
+
+    return _wrapper

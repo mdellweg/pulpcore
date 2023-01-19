@@ -1,5 +1,6 @@
 from gettext import gettext as _
 
+from django.conf import settings
 from rest_framework import fields, serializers
 
 from pulpcore.app.models import Content
@@ -42,3 +43,11 @@ class OrphansCleanupSerializer(serializers.Serializer, ValidateFieldsMixin):
             pks_to_return.append(NamedModelViewSet.get_resource(href, Content).pk)
 
         return pks_to_return
+
+    @property
+    def resources(self):
+        uri = "/api/v3/orphans/cleanup/"
+        if settings.DOMAIN_ENABLED:
+            request = self.context["request"]
+            uri = f"/{request.pulp_domain.name}{uri}"
+        return [uri], None
