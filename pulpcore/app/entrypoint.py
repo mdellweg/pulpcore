@@ -1,3 +1,4 @@
+import sys, errno
 from contextvars import ContextVar
 from logging import getLogger
 import os
@@ -7,7 +8,7 @@ import click
 import django
 from django.conf import settings
 from django.db import connection
-from django.db.utils import InterfaceError, DatabaseError
+from django.db.utils import DatabaseError, InterfaceError, OperationalError
 from gunicorn.workers.sync import SyncWorker
 
 from pulpcore.app.apps import pulp_plugin_configs
@@ -38,9 +39,15 @@ class PulpApiWorker(SyncWorker):
                     self.api_app_status.save(update_fields=["versions"])
 
             logger.debug(self.beat_msg)
-        except (InterfaceError, DatabaseError):
+            self.heartbeat_fail = 0
+        except (DatabaseError, InterfaceError, OperationalError):
             connection.close_if_unusable_or_obsolete()
             logger.info(self.fail_beat_msg)
+            self.heartbeat_fail += 1
+            if self.heartbeat_fail > 2:
+                logger.warn("More than two consecutive heartbeats failed. Shutting down.")
+                sys.exit(errno.EINTR)
+
 
     def init_process(self):
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pulpcore.app.settings")
@@ -69,6 +76,7 @@ class PulpApiWorker(SyncWorker):
             "Api App '{name}' failed to write a heartbeat to the database, sleeping for "
             "'{interarrival}' seconds."
         ).format(name=self.name, interarrival=self.timeout)
+        self.heartbeat_fail = 0
         super().init_process()
 
     def run(self):
