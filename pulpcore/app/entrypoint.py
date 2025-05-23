@@ -8,7 +8,7 @@ import django
 from django.conf import settings
 from django.db import connection
 from django.db.utils import InterfaceError, DatabaseError
-from gunicorn.workers.sync import SyncWorker
+from uvicorn.workers import UvicornWorker
 
 from pulpcore.app.apps import pulp_plugin_configs
 from pulpcore.app.pulpcore_gunicorn_application import PulpcoreGunicornApplication
@@ -19,23 +19,23 @@ logger = getLogger(__name__)
 using_pulp_api_worker = ContextVar("using_pulp_api_worker", default=False)
 
 
-class PulpApiWorker(SyncWorker):
-    def notify(self):
-        super().notify()
-        self.heartbeat()
+class PulpApiWorker(UvicornWorker):
+    async def callback_notify(self):
+        await super().callback_notify()
+        await self.heartbeat()
 
-    def heartbeat(self):
+    async def heartbeat(self):
         try:
-            self.api_app_status, created = self.ApiAppStatus.objects.get_or_create(
+            self.api_app_status, created = await self.ApiAppStatus.objects.aget_or_create(
                 name=self.name, defaults={"versions": self.versions}
             )
 
             if not created:
-                self.api_app_status.save_heartbeat()
+                await self.api_app_status.asave_heartbeat()
 
                 if self.api_app_status.versions != self.versions:
                     self.api_app_status.versions = self.versions
-                    self.api_app_status.save(update_fields=["versions"])
+                    await self.api_app_status.asave(update_fields=["versions"])
 
             logger.debug(self.beat_msg)
         except (InterfaceError, DatabaseError):
@@ -92,10 +92,10 @@ class PulpcoreApiApplication(PulpcoreGunicornApplication):
     def load(self):
         using_pulp_api_worker.set(True)
 
-        import pulpcore.app.wsgi
+        import pulpcore.app.asgi
 
         using_pulp_api_worker.set(False)
-        return pulpcore.app.wsgi.application
+        return pulpcore.app.asgi.application
 
 
 # Gunicorn options are adapted from:

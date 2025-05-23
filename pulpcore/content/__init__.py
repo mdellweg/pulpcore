@@ -67,7 +67,7 @@ async def _heartbeat():
                 )
 
                 if not created:
-                    await sync_to_async(content_app_status.save_heartbeat)()
+                    await content_app_status.asave_heartbeat()
 
                     if content_app_status.versions != versions:
                         content_app_status.versions = versions
