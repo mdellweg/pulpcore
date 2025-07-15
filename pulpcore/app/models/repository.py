@@ -186,8 +186,15 @@ class Repository(MasterModel):
             )
             version.save()
 
+            if base_version is None:
+                try:
+                    base_version = version.previous()
+                except version.DoesNotExist:
+                    pass
+
             if base_version:
                 # first remove the content that isn't in the base version
+                #   This is only needed to keep the old tables happy.
                 version.remove_content(version.content.exclude(pk__in=base_version.content))
                 # now add any content that's in the base_version but not in version
                 version.add_content(base_version.content.exclude(pk__in=version.content))
@@ -890,15 +897,7 @@ class RepositoryVersion(BaseModel):
         if content_qs is None:
             content_qs = Content.objects
 
-        content_ids = self._get_content_ids()
-        if isinstance(content_ids, list) and len(content_ids) >= 65535:
-            # Workaround for PostgreSQL's limit on the number of parameters in a query
-            content_ids = (
-                RepositoryVersion.objects.filter(pk=self.pk)
-                .annotate(cids=Func(F("content_ids"), function="unnest"))
-                .values_list("cids", flat=True)
-            )
-        return content_qs.filter(pk__in=content_ids)
+        return content_qs.filter(repository_version_ids__contains=[self.pk])
 
     @property
     def content(self):
@@ -1009,12 +1008,13 @@ class RepositoryVersion(BaseModel):
         Returns:
             QuerySet: The Content objects that were added by this version.
         """
+        qs = Content.objects.filter(repository_version_ids__contains=[self.pk])
         if not base_version:
-            return Content.objects.filter(version_memberships__version_added=self)
-
-        return Content.objects.filter(pk__in=self._get_content_ids()).exclude(
-            pk__in=base_version._get_content_ids()
-        )
+            try:
+                base_version = self.previous()
+            except self.DoesNotExist:
+                return qs
+        return qs.exclude(repository_version_ids__contains=[base_version.pk])
 
     def removed(self, base_version=None):
         """
@@ -1025,10 +1025,15 @@ class RepositoryVersion(BaseModel):
             QuerySet: The Content objects that were removed by this version.
         """
         if not base_version:
-            return Content.objects.filter(version_memberships__version_removed=self)
+            try:
+                base_version = self.previous()
+            except self.DoesNotExist:
+                return Content.objects.none()
 
-        return Content.objects.filter(pk__in=base_version._get_content_ids()).exclude(
-            pk__in=self._get_content_ids()
+        return Content.objects.filter(
+            repository_version_ids__contains=[base_version.pk],
+        ).exclude(
+            repository_version_ids__contains=[self.pk],
         )
 
     def contains(self, content):
@@ -1038,9 +1043,9 @@ class RepositoryVersion(BaseModel):
         Returns:
             bool: True if the repository version contains the content, False otherwise
         """
-        if self.content_ids is not None:
-            return content.pk in self.content_ids
-        return self.content.filter(pk=content.pk).exists()
+        return Content.objects.filter(
+            pk=content.pk, repository_version_ids__contains=[self.pk]
+        ).exists()
 
     def add_content(self, content):
         """
@@ -1059,10 +1064,15 @@ class RepositoryVersion(BaseModel):
 
         assert (
             not Content.objects.filter(pk__in=content)
-            .exclude(pulp_domain_id=get_domain_pk())
+            .exclude(pulp_domain_id=self.repository.pulp_domain_id)
             .exists()
         )
         repo_content = []
+        content.exclude(repository_version_ids__contains=[self.pk]).update(
+            repository_version_ids=Func(
+                F("repository_version_ids"), self.pk, function="array_append"
+            )
+        )
         to_add = set(content.values_list("pk", flat=True)) - set(self._get_content_ids())
         with transaction.atomic():
             if to_add:
@@ -1107,8 +1117,13 @@ class RepositoryVersion(BaseModel):
             return
         assert (
             not Content.objects.filter(pk__in=content)
-            .exclude(pulp_domain_id=get_domain_pk())
+            .exclude(pulp_domain_id=self.repository.pulp_domain_id)
             .exists()
+        )
+        content.filter(repository_version_ids__contains=[self.pk]).update(
+            repository_version_ids=Func(
+                F("repository_version_ids"), self.pk, function="array_remove"
+            )
         )
         content_ids = set(self._get_content_ids())
         to_remove = set(content.values_list("pk", flat=True))

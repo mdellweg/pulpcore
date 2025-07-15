@@ -97,7 +97,7 @@ def test_content_with_labels(
     file_bindings.ContentFilesApi.unset_label(content2.pulp_href, sl)
     content2 = file_bindings.ContentFilesApi.read(content2.pulp_href)
     assert "key_a" not in content2.pulp_labels
-    # Search for key_a, expect two results
+    # Search for key_a, expect one result
     rslt = file_bindings.ContentFilesApi.list(pulp_label_select="key_a", repository_version=rv2)
     assert 1 == rslt.count
 

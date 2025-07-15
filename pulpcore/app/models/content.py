@@ -17,7 +17,7 @@ from functools import lru_cache, partial
 from itertools import chain
 
 from django.conf import settings
-from django.contrib.postgres.fields import HStoreField
+from django.contrib.postgres.fields import ArrayField, HStoreField
 from django.core import validators
 from django.db import IntegrityError, models, transaction
 from django.forms.models import model_to_dict
@@ -531,6 +531,7 @@ class Content(MasterModel, QueryMixin):
     TYPE = "content"
     repo_key_fields = ()  # Used by pulpcore.plugin.repo_version_utils.remove_duplicates
     upstream_id = models.UUIDField(null=True)  # Used by PulpImport/Export processing
+    repository_version_ids = ArrayField(models.UUIDField(), default=list, null=False)
     pulp_labels = HStoreField(default=dict)
 
     _artifacts = models.ManyToManyField(Artifact, through="ContentArtifact")
